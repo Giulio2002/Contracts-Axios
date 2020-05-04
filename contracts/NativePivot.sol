@@ -3,9 +3,9 @@ pragma solidity >=0.4.21 <0.7.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
-import "./EventUpdate.sol";
+import "./Eventful.sol";
 
-contract NativePivot is Ownable, EventUpdate {
+contract NativePivot is Ownable, Eventful {
     using SafeMath for uint256;
 
     ERC20 public dai;
@@ -13,6 +13,7 @@ contract NativePivot is Ownable, EventUpdate {
     uint256 public min_expire;
     uint256 public min_price_in;
     uint256 public min_price_out;
+    uint256 public fee;
 
     struct Option {
         address payable origin;
@@ -26,7 +27,7 @@ contract NativePivot is Ownable, EventUpdate {
 
     mapping(bytes32 => Option) opts;
 
-    constructor(address _dai, uint256 _min_expire, uint256 _min_lock, uint256 _min_price_in, uint256 _min_price_out) public {
+    constructor(address _dai, uint256 _min_expire, uint256 _min_lock, uint256 _min_price_in, uint256 _min_price_out, uint256 _fee) public {
         require(_dai != address(0), "Invalid token");
         require(_min_lock != 0, "Invalid min_lock");
         require(_min_expire != 0, "Invalid min_expire");
@@ -37,20 +38,23 @@ contract NativePivot is Ownable, EventUpdate {
         min_expire = _min_expire;
         min_price_in = _min_price_in;
         min_price_out = _min_price_out;
+        fee = _fee;
     }
 
     function join(bytes32 id, uint256 expire, uint256 price_in, uint256 price_out, uint256 until) public payable returns(bool) {
         require(opts[id].origin == address(0), "Taken");
         require(msg.value >= min_lock, "Value is less than min_lock");
         require(price_in >= min_price_in, "price_in less than min_price_in");
+        require(expire > now, "Expire less than now");
+        require(until > now, "Until less than now");
         require(price_out >= min_price_out, "price_out less than min_price_out");
-        require(expire >= min_expire, "Expire is less than min_expire");
-        require(until <= expire && until != 0,"Invalid Until");
+        require(expire.sub(now) >= min_expire, "Expire is less than min_expire");
+        require(until <= expire,"Invalid Until");
         opts[id].origin = msg.sender;
         opts[id].owner = msg.sender;
         opts[id].lock = msg.value;
-        opts[id].until = now + until;
-        opts[id].expire = now + expire;
+        opts[id].until = until;
+        opts[id].expire = expire;
         opts[id].price_in = price_in;
         opts[id].price_out = price_out;
 
@@ -74,8 +78,8 @@ contract NativePivot is Ownable, EventUpdate {
         require(opts[id].origin == opts[id].owner, "Auth");
         require(opts[id].origin != msg.sender, "Same");
         opts[id].owner = msg.sender;
-        
         emit Updated(id);
+        dai.transferFrom(msg.sender, address(this), fee);
         return dai.transferFrom(msg.sender, opts[id].origin, opts[id].price_in);
     }
 
@@ -101,6 +105,10 @@ contract NativePivot is Ownable, EventUpdate {
         emit Updated(id);
 
         return true;
+    }
+
+    function take(address guy) onlyOwner public returns(bool) {
+        return dai.transfer(guy, dai.balanceOf(address(this)));
     }
 
     function setParam(bytes32 param, uint256 value) public onlyOwner returns(bool) {

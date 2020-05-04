@@ -12,6 +12,7 @@ const min_expire = new BN(1000)
 const min_lock = new BN(1000)
 const min_price_in = new BN(1000)
 const min_price_out = new BN(100000)
+const fee = new BN(10)
 const zero = new BN(0)
 
 describe('NativePivot', function () {
@@ -21,10 +22,11 @@ describe('NativePivot', function () {
   const price_in = new BN(100000)
   const price_out = new BN(10000000)
   const lock = 10000000000000000 // 0.01 ether
+  this.timeout(0)
   
   beforeEach(async function () {
     this.token = await DaiMock.new({ from: guy })
-    this.pivot = await Pivot.new(this.token.address, min_expire, min_lock, min_price_in, min_price_out, { from: guy })
+    this.pivot = await Pivot.new(this.token.address, min_expire, min_lock, min_price_in, min_price_out, fee, { from: guy })
     await this.token.approve(this.pivot.address, new BN(2000000000), {from: guy})
     await this.token.transfer(otherGuy, new BN(2000000000), {from: guy})
     await this.token.approve(this.pivot.address, new BN(2000000000), {from: otherGuy})
@@ -36,41 +38,42 @@ describe('NativePivot', function () {
     expect(await this.pivot.min_lock()).to.be.bignumber.equal(min_lock)
     expect(await this.pivot.min_price_in()).to.be.bignumber.equal(min_price_in)
     expect(await this.pivot.min_price_out()).to.be.bignumber.equal(min_price_out)
+    expect(await this.pivot.fee()).to.be.bignumber.equal(fee)
   })
 
   describe('Initialization Revert', () => {
 
     it("zero token", async function () {
       await expectRevert(
-        Pivot.new(ZERO_ADDRESS, min_expire, min_lock, min_price_in, min_price_out, { from: guy }),
+        Pivot.new(ZERO_ADDRESS, min_expire, min_lock, min_price_in, min_price_out, fee, { from: guy }),
         "Invalid token"
       )
     })
 
     it("zero min_lock", async function () {
       await expectRevert(
-        Pivot.new(this.token.address, min_expire, zero, min_price_in, min_price_out, { from: guy }),
+        Pivot.new(this.token.address, min_expire, zero, min_price_in, min_price_out, fee, { from: guy }),
         "Invalid min_lock"
       )
     })
 
     it("zero min_expire", async function () {
       await expectRevert(
-        Pivot.new(this.token.address, zero, min_lock, min_price_in, min_price_out, { from: guy }),
+        Pivot.new(this.token.address, zero, min_lock, min_price_in, min_price_out, fee, { from: guy }),
         "Invalid min_expire"
       )
     })
 
     it("zero min_price_in", async function () {
       await expectRevert(
-        Pivot.new(this.token.address, min_expire, min_lock, zero, min_price_out, { from: guy }),
+        Pivot.new(this.token.address, min_expire, min_lock, zero, min_price_out, fee, { from: guy }),
         "Invalid min_price_in"
       )
     })
 
     it("zero min_price_in", async function () {
       await expectRevert(
-        Pivot.new(this.token.address, min_expire, min_lock, min_price_in, zero, { from: guy }),
+        Pivot.new(this.token.address, min_expire, min_lock, min_price_in, zero, fee, { from: guy }),
         "Invalid min_price_out"
       )
     })
@@ -78,8 +81,9 @@ describe('NativePivot', function () {
 
   describe('Join', () => {
     it("should join", async function() {
-      await this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: lock})
-      const timestamp = await time.latest();
+      let timestamp = await time.latest();
+      await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
+      timestamp = await time.latest();
       const info = await getInfo(this.pivot, id1)
       expect(info.owner).to.be.equal(guy)
       expect(info.origin).to.be.equal(guy)
@@ -92,80 +96,86 @@ describe('NativePivot', function () {
 
     it("join should detract lock", async function() {
       const balInitial = await balance.current(guy)
-      await this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: lock})
+      const timestamp = await time.latest();
+      await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
       expect(await balance.current(guy)).to.be.bignumber.below(balInitial)
     })
 
     describe('Revert', async function() {
+      let timestamp;
+      beforeEach(async function () {
+        timestamp = await time.latest();
+      })
+
       it("should join only once per id", async function() {
-        await this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: lock})
-        await expectRevert(this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: lock}), 
+        await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
+        await expectRevert(this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock}), 
             "Taken"
         )
       })
 
       it("shouldnt join with value 0", async function() {
         await expectRevert(
-            this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: 0}), 
+            this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: 0}), 
             "Value is less than min_lock"
         )
       })
 
       it("shouldnt join with value less than min_lock", async function() {
         await expectRevert(
-            this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: 1}), 
+            this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: 1}), 
             "Value is less than min_lock"
         )
       })
 
       it("shouldnt join with 0 price_in", async function() {
         await expectRevert(
-            this.pivot.join(id1, expire, zero, price_out, until, {from: guy, value: lock}), 
+            this.pivot.join(id1, expire.add(timestamp), zero, price_out, until.add(timestamp), {from: guy, value: lock}), 
             "price_in less than min_price_in"
         )
       })
 
       it("shouldnt join with price_in less than min_price_in", async function() {
         await expectRevert(
-            this.pivot.join(id1, expire, new BN(1), price_out, until, {from: guy, value: lock}), 
+            this.pivot.join(id1, expire.add(timestamp), new BN(1), price_out, until.add(timestamp), {from: guy, value: lock}), 
             "price_in less than min_price_in"
         )
       })
 
       it("shouldnt join with 0 price_out", async function() {
         await expectRevert(
-            this.pivot.join(id1, expire, price_in, zero, until, {from: guy, value: lock}), 
+            this.pivot.join(id1, expire.add(timestamp), price_in, zero, until.add(timestamp), {from: guy, value: lock}), 
             "price_out less than min_price_out"
         )
       })
 
       it("shouldnt join with price_out less than min_price_out", async function() {
         await expectRevert(
-          this.pivot.join(id1, expire, price_in, new BN(1), until, {from: guy, value: lock}), 
+          this.pivot.join(id1, expire.add(timestamp), price_in, new BN(1), until.add(timestamp), {from: guy, value: lock}), 
           "price_out less than min_price_out"
         )
       })
 
-      it("shouldnt join with 0 expire", async function() {
+      it("shouldnt join with expire less than timestamp", async function() {
         await expectRevert(this.pivot.join(id1, zero, price_in, price_out, until, {from: guy, value: lock}), 
-            "Expire is less than min_expire"
+            "Expire less than now"
         )
       })
 
-      it("shouldnt join with 0 until", async function() {
-        await expectRevert(this.pivot.join(id1, expire, price_in, price_out, zero, {from: guy, value: lock}), 
-            "Invalid Until"
+      it("shouldnt join with until less than timestamp", async function() {
+        await expectRevert(this.pivot.join(id1, expire.add(timestamp), price_in, price_out, zero, {from: guy, value: lock}), 
+            "Until less than now"
         )
       })
 
       it("shouldnt join with expire less than min_expire", async function() {
-        await expectRevert(this.pivot.join(id1, new BN(100), price_in, price_out, new BN(50), {from: guy, value: lock}), 
+        await expectRevert(this.pivot.join(id1, timestamp.add(new BN(100)), price_in, price_out, timestamp.add(new BN(50)), {from: guy, value: lock}), 
             "Expire is less than min_expire"
         )
       })
 
       it("shouldnt join with expire less than until", async function() {
-        await expectRevert(this.pivot.join(id1, expire, price_in, price_out, new BN(5000), {from: guy, value: lock}), 
+        await expectRevert(this.pivot.join(id1, expire.add(timestamp), price_in, price_out, timestamp.add(new BN(5000)), {from: guy, value: lock}), 
             "Invalid Until"
         )
       })
@@ -175,7 +185,8 @@ describe('NativePivot', function () {
   describe('Exit', () => {
 
     beforeEach(async function () {
-      await this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: lock})
+      const timestamp = await time.latest();
+      await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
     })
     
     it("should Exit", async function() {
@@ -224,13 +235,23 @@ describe('NativePivot', function () {
   describe('Buy', () => {
 
     beforeEach(async function () {
-      await this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: lock})
+      const timestamp = await time.latest();
+      await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
     })
     
     it("should Buy", async function() {
       await this.pivot.buy(id1, {from: otherGuy})
       const info = await getInfo(this.pivot, id1)
       expect(info.owner).to.be.equal(otherGuy)
+    })
+
+    it("fee system", async function() {
+      await this.pivot.buy(id1, {from: otherGuy})
+      const info = await getInfo(this.pivot, id1)
+      expect(info.owner).to.be.equal(otherGuy)
+      const bal = await this.token.balanceOf(guy);
+      await this.pivot.take(guy, {from: guy})
+      expect(bal).to.be.bignumber.below(await this.token.balanceOf(guy))
     })
 
     it("buy should pay price_in", async function() {
@@ -288,7 +309,8 @@ describe('NativePivot', function () {
   describe('Claim', () => {
 
     beforeEach(async function () {
-      await this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: lock})
+      const timestamp = await time.latest();
+      await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
       await this.pivot.buy(id1, {from: otherGuy})
     })
     
@@ -328,7 +350,8 @@ describe('NativePivot', function () {
       })
 
       it("origin shouldnt claim after ", async function() {
-        await this.pivot.join(id2, expire, price_in, price_out, until, {from: guy, value: lock})
+        timestamp = await time.latest();
+        await this.pivot.join(id2, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
         await expectRevert(this.pivot.claim(id2, {from: guy}), 
             "Same"
         )
@@ -339,7 +362,8 @@ describe('NativePivot', function () {
   describe('Back - Until', () => {
 
     beforeEach(async function () {
-      await this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: lock})
+      const timestamp = await time.latest();
+      await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
       time.increase(until.add(new BN(1)))
     })
     
@@ -362,20 +386,14 @@ describe('NativePivot', function () {
             "Invalid id"
         )
       })
-
-      it("shouldnt back when not expired", async function() {
-        await this.pivot.join(id2, expire, price_in, price_out, until, {from: guy, value: lock})
-        await expectRevert(this.pivot.back(id2, {from: otherGuy}), 
-            "Too soon"
-        )
-      })
     })
   })
 
   describe('Back - Expire', () => {
 
     beforeEach(async function () {
-      await this.pivot.join(id1, expire, price_in, price_out, until, {from: guy, value: lock})
+      const timestamp = await time.latest();
+      await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
       await this.pivot.buy(id1, {from: otherGuy})
       time.increase(expire.add(new BN(1)))
     })
@@ -397,14 +415,6 @@ describe('NativePivot', function () {
         await this.pivot.back(id1, {from: guy})
         await expectRevert(this.pivot.back(id1, {from: guy}), 
             "Invalid id"
-        )
-      })
-
-      it("shouldnt back when not expired", async function() {
-        await this.pivot.join(id2, expire, price_in, price_out, until, {from: guy, value: lock})
-        await this.pivot.buy(id2, {from: otherGuy})
-        await expectRevert(this.pivot.back(id2, {from: otherGuy}), 
-            "Too soon"
         )
       })
     })
