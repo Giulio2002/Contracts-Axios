@@ -205,7 +205,7 @@ describe('NativePivot', function () {
       it("should exit only once per id", async function() {
         await this.pivot.exit(id1, {from: guy})
         await expectRevert(this.pivot.exit(id1, {from: guy}), 
-            "Auth"
+            "Not alive"
         )
       })
 
@@ -220,7 +220,7 @@ describe('NativePivot', function () {
         await this.pivot.buy(id1, {from: otherGuy})
         await this.pivot.claim(id1, {from: otherGuy})
         await expectRevert(this.pivot.exit(id1, {from: guy}), 
-            "Auth"
+            "Not alive"
         )
       })
 
@@ -273,7 +273,7 @@ describe('NativePivot', function () {
       it("shouldnt buy after exit", async function() {
         await this.pivot.exit(id1, {from: guy})
         await expectRevert(this.pivot.buy(id1, {from: otherGuy}), 
-            "Auth"
+            "Not alive"
         )
       })
 
@@ -281,7 +281,7 @@ describe('NativePivot', function () {
         await this.pivot.buy(id1, {from: otherGuy})
         await this.pivot.claim(id1, {from: otherGuy})
         await expectRevert(this.pivot.buy(id1, {from: guy}), 
-            "Auth"
+            "Not alive"
         )
       })
 
@@ -317,7 +317,7 @@ describe('NativePivot', function () {
     it("should Claim", async function() {
       await this.pivot.claim(id1, {from: otherGuy})
       const info = await getInfo(this.pivot, id1)
-      expect(info.owner).to.be.equal(ZERO_ADDRESS)
+      expect(info.alive).to.be.equal(false)
     })
 
     it("claim should pay price_out", async function() {
@@ -338,7 +338,7 @@ describe('NativePivot', function () {
       it("should claim only once per id", async function() {
         await this.pivot.claim(id1, {from: otherGuy})
         await expectRevert(this.pivot.claim(id1, {from: otherGuy}), 
-            "Auth"
+            "Not alive"
         )
       })
 
@@ -370,7 +370,7 @@ describe('NativePivot', function () {
     it("should back", async function() {
       await this.pivot.back(id1, {from: otherGuy})
       const info = await getInfo(this.pivot, id1)
-      expect(info.owner).to.be.equal(ZERO_ADDRESS)
+      expect(info.alive).to.be.equal(false)
     })
 
     it("back should pay back lock", async function() {
@@ -383,7 +383,7 @@ describe('NativePivot', function () {
       it("should back only once per id", async function() {
         await this.pivot.back(id1, {from: guy})
         await expectRevert(this.pivot.back(id1, {from: guy}), 
-            "Invalid id"
+            "Not alive"
         )
       })
     })
@@ -401,7 +401,7 @@ describe('NativePivot', function () {
     it("should back", async function() {
       await this.pivot.back(id1, {from: otherGuy})
       const info = await getInfo(this.pivot, id1)
-      expect(info.owner).to.be.equal(ZERO_ADDRESS)
+      expect(info.alive).to.be.equal(false)
     })
 
     it("back should pay back lock", async function() {
@@ -414,7 +414,7 @@ describe('NativePivot', function () {
       it("should back only once per id", async function() {
         await this.pivot.back(id1, {from: guy})
         await expectRevert(this.pivot.back(id1, {from: guy}), 
-            "Invalid id"
+            "Not alive"
         )
       })
     })

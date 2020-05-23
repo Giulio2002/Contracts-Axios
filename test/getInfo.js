@@ -6,7 +6,8 @@ const getInfo = async (pivot, id) => {
     const until = await pivot.getUntil(id);
     const price_in = await pivot.getPriceIn(id);
     const price_out = await pivot.getPriceOut(id);
-    return {expire, origin, owner, lock, until, price_in, price_out}
+    const alive = await pivot.isAlive(id);
+    return {expire, origin, owner, lock, until, price_in, price_out, alive}
 }
 
 module.exports = getInfo;

@@ -23,6 +23,7 @@ contract NativePivot is Ownable, Eventful {
         uint256 until;
         uint256 price_in;
         uint256 price_out;
+        bool    alive;
     }
 
     mapping(bytes32 => Option) opts;
@@ -57,23 +58,26 @@ contract NativePivot is Ownable, Eventful {
         opts[id].expire = expire;
         opts[id].price_in = price_in;
         opts[id].price_out = price_out;
-
+        opts[id].alive = true;
         emit Updated(id);
         return true;
     }
 
     function exit(bytes32 id) public returns(bool) {
+        require(opts[id].alive, "Not alive");
         require(opts[id].origin == opts[id].owner, "Auth");
         require(opts[id].origin == msg.sender, "Auth");
         uint256 value = opts[id].lock;
         opts[id].owner = address(0);
         opts[id].origin.transfer(value);
+        opts[id].alive = false;
 
         emit Updated(id);
         return true;
     }
 
     function buy(bytes32 id) public returns(bool) {
+        require(opts[id].alive, "Not alive");
         require(opts[id].until > now, "Until exceeded");
         require(opts[id].origin == opts[id].owner, "Auth");
         require(opts[id].origin != msg.sender, "Same");
@@ -84,11 +88,12 @@ contract NativePivot is Ownable, Eventful {
     }
 
     function claim(bytes32 id) public returns(bool) {
+        require(opts[id].alive, "Not alive");
         require(opts[id].expire > now, "Expired");
         require(opts[id].origin != opts[id].owner, "Same");
         require(msg.sender == opts[id].owner, "Auth");
 
-        opts[id].owner = address(0);
+        opts[id].alive = false;
         dai.transferFrom(msg.sender, opts[id].origin, opts[id].price_out);
         msg.sender.transfer(opts[id].lock);
         emit Updated(id);
@@ -97,10 +102,11 @@ contract NativePivot is Ownable, Eventful {
     }
 
     function back(bytes32 id) public returns(bool) {
+        require(opts[id].alive, "Not alive");
         require(opts[id].owner != address(0), "Invalid id");
         require(now > opts[id].expire || (now > opts[id].until && opts[id].owner == opts[id].origin), "Too soon");
 
-        opts[id].owner = address(0);
+        opts[id].alive = false;
         opts[id].origin.transfer(opts[id].lock);
         emit Updated(id);
 
@@ -154,5 +160,9 @@ contract NativePivot is Ownable, Eventful {
 
     function getUntil(bytes32 id) public view returns(uint256) {
         return opts[id].until;
+    }
+
+    function isAlive(bytes32 id) public view returns(bool) {
+        return opts[id].alive;
     }
 }
