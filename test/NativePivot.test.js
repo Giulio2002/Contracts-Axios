@@ -212,7 +212,7 @@ describe('NativePivot', function () {
       it("shouldnt exit after buy", async function() {
         await this.pivot.buy(id1, {from: otherGuy})
         await expectRevert(this.pivot.exit(id1, {from: guy}), 
-            "Auth"
+            "Not alive"
         )
       })
 
@@ -266,7 +266,7 @@ describe('NativePivot', function () {
       it("should buy only once per id", async function() {
         await this.pivot.buy(id1, {from: otherGuy})
         await expectRevert(this.pivot.buy(id1, {from: otherGuy}), 
-            "Auth"
+            "Not alive"
         )
       })
 
@@ -353,7 +353,7 @@ describe('NativePivot', function () {
         timestamp = await time.latest();
         await this.pivot.join(id2, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
         await expectRevert(this.pivot.claim(id2, {from: guy}), 
-            "Same"
+            "Not alive"
         )
       })
     })
