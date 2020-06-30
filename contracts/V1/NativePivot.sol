@@ -4,7 +4,7 @@ import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/math/SafeMath.sol";
 import "./Eventful.sol";
-
+// V1
 contract NativePivot is Ownable, Eventful {
     using SafeMath for uint256;
 
@@ -75,7 +75,6 @@ contract NativePivot is Ownable, Eventful {
         require(opts[id].origin == opts[id].owner, "Auth");
         require(opts[id].origin == msg.sender, "Auth");
         uint256 value = opts[id].lock;
-        opts[id].owner = address(0);
         opts[id].origin.transfer(value);
         opts[id].status = 2;
 

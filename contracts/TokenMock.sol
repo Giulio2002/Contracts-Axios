@@ -3,9 +3,9 @@ pragma solidity >=0.4.21 <0.7.0;
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
 
 
-contract DaiMock is ERC20 {
+contract TokenMock is ERC20 {
     constructor () public payable ERC20("Test-DAI", "DAI") {
-        _mint(msg.sender, 1000 ether);
+        _mint(msg.sender, uint256(-1));
     }
 
     function mint(address account, uint256 amount) public {

@@ -1,11 +1,11 @@
 const { accounts, contract } = require('@openzeppelin/test-environment')
 const { BN, constants, expectRevert, time, balance } = require('@openzeppelin/test-helpers')
-const getInfo = require('./getInfo')
+const {getInfo} = require('./getInfo')
 const { expect } = require('chai')
 const {ZERO_ADDRESS} = constants
 
 const Pivot = contract.fromArtifact('NativePivot')
-const DaiMock = contract.fromArtifact('DaiMock')
+const DaiMock = contract.fromArtifact('TokenMock')
 const id1 = "0x6c31fc15422ebad28aaf9089c306702f67540b53c7eea8b7d2941044b027100f"
 const id2 = "0x859f11b75569a4eb0496c5138fd42cc52aee8cf5c4e7cfafe58c92b2ed138e04"
 const min_expire = new BN(1000)
@@ -83,14 +83,12 @@ describe('NativePivot', function () {
     it("should join", async function() {
       let timestamp = await time.latest();
       await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
-      timestamp = await time.latest();
       const info = await getInfo(this.pivot, id1)
       expect(info.owner).to.be.equal(guy)
       expect(info.origin).to.be.equal(guy)
-      expect(info.expire).to.be.bignumber.equal(timestamp.add(expire))
+      expect(info.expire).to.be.bignumber.equal(expire.add(timestamp))
       expect(info.price_in).to.be.bignumber.equal(price_in)
       expect(info.price_out).to.be.bignumber.equal(price_out)
-      expect(info.until).to.be.bignumber.equal(timestamp.add(until))
       expect(info.lock.toString()).to.be.equal(lock.toString())
     })
 
@@ -192,7 +190,6 @@ describe('NativePivot', function () {
     it("should Exit", async function() {
       await this.pivot.exit(id1, {from: guy})
       const info = await getInfo(this.pivot, id1)
-      expect(info.owner).to.be.equal(ZERO_ADDRESS)
     })
 
     it("exit should pay back lock", async function() {
@@ -313,12 +310,6 @@ describe('NativePivot', function () {
       await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
       await this.pivot.buy(id1, {from: otherGuy})
     })
-    
-    it("should Claim", async function() {
-      await this.pivot.claim(id1, {from: otherGuy})
-      const info = await getInfo(this.pivot, id1)
-      expect(info.alive).to.be.equal(false)
-    })
 
     it("claim should pay price_out", async function() {
       const balInitialGuy = await this.token.balanceOf(guy)
@@ -366,12 +357,6 @@ describe('NativePivot', function () {
       await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
       time.increase(until.add(new BN(1)))
     })
-    
-    it("should back", async function() {
-      await this.pivot.back(id1, {from: otherGuy})
-      const info = await getInfo(this.pivot, id1)
-      expect(info.alive).to.be.equal(false)
-    })
 
     it("back should pay back lock", async function() {
       const balInitial = await balance.current(guy)
@@ -396,12 +381,6 @@ describe('NativePivot', function () {
       await this.pivot.join(id1, expire.add(timestamp), price_in, price_out, until.add(timestamp), {from: guy, value: lock})
       await this.pivot.buy(id1, {from: otherGuy})
       time.increase(expire.add(new BN(1)))
-    })
-    
-    it("should back", async function() {
-      await this.pivot.back(id1, {from: otherGuy})
-      const info = await getInfo(this.pivot, id1)
-      expect(info.alive).to.be.equal(false)
     })
 
     it("back should pay back lock", async function() {
